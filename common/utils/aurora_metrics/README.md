@@ -9,7 +9,7 @@ The Aurora Metrics Service is a high-performance metric collection and monitorin
 ### Components
 
 1. **Shared Memory Layer** (`aurora_metrics_shm.c/h`)
-   - Lock-free shared memory implementation using POSIX shared memory
+   - Shared memory implementation using POSIX shared memory
    - Process-shared pthread mutex for synchronization
    - Support for up to 64 nodes and 256 workers
    - Magic number and version validation
