@@ -65,15 +65,16 @@ static void signal_handler(int sig)
  */
 static void print_usage(const char *prog_name)
 {
-  fprintf(stderr, "Usage: %s [shm_name] [output.csv] [interval_ms]\n", prog_name);
+  fprintf(stderr, "Usage: %s [shm_name] [output_prefix] [interval_ms]\n", prog_name);
   fprintf(stderr, "\n");
   fprintf(stderr, "Arguments:\n");
-  fprintf(stderr, "  shm_name     - Name of Aurora shared memory segment (default: aurora_metrics)\n");
-  fprintf(stderr, "  output.csv   - Output CSV file path (default: aurora_metrics.csv)\n");
-  fprintf(stderr, "  interval_ms  - Collection interval in milliseconds (default: 1000)\n");
+  fprintf(stderr, "  shm_name       - Name of Aurora shared memory segment (default: aurora_metrics)\n");
+  fprintf(stderr, "  output_prefix  - Output file prefix; creates <prefix>.nodes.csv and\n");
+  fprintf(stderr, "                   <prefix>.workers.csv (default: aurora_metrics.csv)\n");
+  fprintf(stderr, "  interval_ms    - Collection interval in milliseconds (default: 1000)\n");
   fprintf(stderr, "\n");
   fprintf(stderr, "Example:\n");
-  fprintf(stderr, "  %s aurora_metrics /tmp/metrics.csv 500\n", prog_name);
+  fprintf(stderr, "  %s aurora_metrics /tmp/metrics 500\n", prog_name);
   fprintf(stderr, "\n");
 }
 

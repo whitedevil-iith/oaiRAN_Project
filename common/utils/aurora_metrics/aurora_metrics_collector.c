@@ -180,7 +180,10 @@ static void *collection_thread_func(void *arg)
     }
     
     /* Sleep until next collection time */
-    clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &next_time, NULL);
+    int sleep_ret = clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &next_time, NULL);
+    if (sleep_ret != 0 && sleep_ret != EINTR) {
+      fprintf(stderr, "clock_nanosleep failed: %s\n", strerror(sleep_ret));
+    }
   }
   
   return NULL;

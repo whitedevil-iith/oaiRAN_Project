@@ -290,7 +290,7 @@ void test_collector(void)
   printf("  Collector started\n");
   
   /* Let it collect for a bit to test delta computation */
-  usleep(350000);  /* 350ms - should get 3-4 collections */
+  usleep(350000);  /* 350ms - should get about 3 collections at 100ms interval */
   
   /* Stop collector */
   ret = aurora_collector_stop(&collector);
