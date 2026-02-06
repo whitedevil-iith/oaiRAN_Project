@@ -21,7 +21,7 @@
 
 /**
  * @file aurora_worker_metrics.h
- * @brief Worker process metrics collection via /proc filesystem
+ * @brief Worker process metrics collection using eBPF-style direct syscalls
  */
 
 #pragma once
@@ -34,20 +34,48 @@ extern "C" {
 #endif
 
 /**
- * @brief Read CPU time for a worker process
+ * @brief Raw monotonic worker metrics (for delta computation)
+ */
+typedef struct {
+  double cpu_time_total;       /**< Total CPU seconds (monotonic) */
+  double memory_rss;           /**< RSS memory in bytes (gauge) */
+  double memory_heap;          /**< Heap memory in bytes (gauge) */
+  double net_tx_bytes_total;   /**< Total network TX bytes (monotonic) */
+  double net_rx_bytes_total;   /**< Total network RX bytes (monotonic) */
+  double fs_read_bytes_total;  /**< Total FS read bytes (monotonic) */
+  double fs_write_bytes_total; /**< Total FS write bytes (monotonic) */
+  struct timespec timestamp;   /**< Collection timestamp (nanosec precision) */
+} AuroraWorkerRawMetrics;
+
+/**
+ * @brief Read CPU time for a worker process (fast using getrusage)
  * 
- * @param pid Process ID
- * @param cpu_time Output: CPU time in seconds
+ * Uses getrusage(RUSAGE_SELF, ...) for fast CPU time without parsing /proc.
+ * 
+ * @param pid Process ID (use getpid() for current process)
+ * @param cpu_time Output: Total CPU time in seconds (monotonic)
  * @return 0 on success, -1 on failure
  */
-int aurora_worker_read_cpu(pid_t pid, double *cpu_time);
+int aurora_worker_read_cpu_fast(pid_t pid, double *cpu_time);
+
+/**
+ * @brief Read CPU time for a worker process (fallback using /proc)
+ * 
+ * Fallback method using /proc/[pid]/stat when getrusage cannot be used
+ * for other processes.
+ * 
+ * @param pid Process ID
+ * @param cpu_time Output: Total CPU time in seconds (monotonic)
+ * @return 0 on success, -1 on failure
+ */
+int aurora_worker_read_cpu_proc(pid_t pid, double *cpu_time);
 
 /**
  * @brief Read memory usage for a worker process
  * 
  * @param pid Process ID
- * @param rss_bytes Output: Resident Set Size in bytes
- * @param heap_bytes Output: Heap memory in bytes
+ * @param rss_bytes Output: Resident Set Size in bytes (gauge)
+ * @param heap_bytes Output: Heap memory in bytes (gauge)
  * @return 0 on success, -1 on failure
  */
 int aurora_worker_read_memory(pid_t pid, double *rss_bytes, double *heap_bytes);
@@ -56,8 +84,8 @@ int aurora_worker_read_memory(pid_t pid, double *rss_bytes, double *heap_bytes);
  * @brief Read network statistics for a worker process
  * 
  * @param pid Process ID
- * @param tx_bytes Output: Transmitted bytes
- * @param rx_bytes Output: Received bytes
+ * @param tx_bytes Output: Total transmitted bytes (monotonic)
+ * @param rx_bytes Output: Total received bytes (monotonic)
  * @return 0 on success, -1 on failure
  */
 int aurora_worker_read_network(pid_t pid, double *tx_bytes, double *rx_bytes);
@@ -66,20 +94,23 @@ int aurora_worker_read_network(pid_t pid, double *tx_bytes, double *rx_bytes);
  * @brief Read I/O statistics for a worker process
  * 
  * @param pid Process ID
- * @param read_bytes Output: Bytes read from storage
- * @param write_bytes Output: Bytes written to storage
+ * @param read_bytes Output: Total bytes read from storage (monotonic)
+ * @param write_bytes Output: Total bytes written to storage (monotonic)
  * @return 0 on success, -1 on failure
  */
 int aurora_worker_read_io(pid_t pid, double *read_bytes, double *write_bytes);
 
 /**
- * @brief Collect all worker metrics
+ * @brief Collect all raw (monotonic) worker metrics
+ * 
+ * Collects all raw monotonic values. The collector will compute deltas
+ * from these raw values.
  * 
  * @param pid Process ID
- * @param entry Output: Worker metric entry (worker_id and worker_name should be pre-filled)
+ * @param raw Output: Raw monotonic metrics
  * @return 0 on success, -1 on failure
  */
-int aurora_worker_collect_all(pid_t pid, AuroraWorkerMetricEntry *entry);
+int aurora_worker_collect_raw(pid_t pid, AuroraWorkerRawMetrics *raw);
 
 #ifdef __cplusplus
 }

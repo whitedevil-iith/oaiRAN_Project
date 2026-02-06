@@ -70,13 +70,13 @@ typedef enum {
   AURORA_METRIC_UL_CRC_LOSS_RATE = 21,   /**< Uplink CRC loss rate */
   
   /* Worker metrics */
-  AURORA_METRIC_CPU_TIME = 30,       /**< CPU time consumed */
-  AURORA_METRIC_MEMORY_RSS = 31,     /**< Resident Set Size memory */
-  AURORA_METRIC_MEMORY_HEAP = 32,    /**< Heap memory usage */
-  AURORA_METRIC_NET_TX_BYTES = 33,   /**< Network transmitted bytes */
-  AURORA_METRIC_NET_RX_BYTES = 34,   /**< Network received bytes */
-  AURORA_METRIC_FS_READ_BYTES = 35,  /**< Filesystem read bytes */
-  AURORA_METRIC_FS_WRITE_BYTES = 36, /**< Filesystem write bytes */
+  AURORA_METRIC_CPU_TIME_DELTA = 30,       /**< CPU time consumed (delta) */
+  AURORA_METRIC_MEMORY_RSS = 31,           /**< Resident Set Size memory (gauge) */
+  AURORA_METRIC_MEMORY_HEAP = 32,          /**< Heap memory usage (gauge) */
+  AURORA_METRIC_NET_TX_BYTES_DELTA = 33,   /**< Network transmitted bytes (delta) */
+  AURORA_METRIC_NET_RX_BYTES_DELTA = 34,   /**< Network received bytes (delta) */
+  AURORA_METRIC_FS_READ_BYTES_DELTA = 35,  /**< Filesystem read bytes (delta) */
+  AURORA_METRIC_FS_WRITE_BYTES_DELTA = 36, /**< Filesystem write bytes (delta) */
   
   /* Statistical metrics */
   AURORA_METRIC_VARIANCE = 40,       /**< Variance */
@@ -92,23 +92,23 @@ typedef enum {
 typedef struct {
   AuroraMetricId metric_id;  /**< Metric identifier */
   double value;              /**< Metric value */
-  time_t timestamp;          /**< Time of collection */
+  struct timespec timestamp; /**< Time of collection (nanosecond precision) */
 } AuroraMetricValue;
 
 /**
- * @brief Worker metric entry
+ * @brief Worker metric entry (DELTA metrics)
  */
 typedef struct {
-  uint32_t worker_id;                  /**< Worker/process/thread ID */
+  uint32_t worker_id;                    /**< Worker/process/thread ID */
   char worker_name[AURORA_MAX_NAME_LEN]; /**< Worker name */
-  double cpu_time;                     /**< CPU time in seconds */
-  double memory_rss;                   /**< RSS memory in bytes */
-  double memory_heap;                  /**< Heap memory in bytes */
-  double net_tx_bytes;                 /**< Network TX bytes */
-  double net_rx_bytes;                 /**< Network RX bytes */
-  double fs_read_bytes;                /**< Filesystem read bytes */
-  double fs_write_bytes;               /**< Filesystem write bytes */
-  time_t timestamp;                    /**< Collection timestamp */
+  double cpu_time_delta;                 /**< CPU seconds consumed THIS interval */
+  double memory_rss;                     /**< RSS memory in bytes (gauge) */
+  double memory_heap;                    /**< Heap memory in bytes (gauge) */
+  double net_tx_bytes_delta;             /**< Network TX bytes THIS interval */
+  double net_rx_bytes_delta;             /**< Network RX bytes THIS interval */
+  double fs_read_bytes_delta;            /**< Filesystem read bytes THIS interval */
+  double fs_write_bytes_delta;           /**< Filesystem write bytes THIS interval */
+  struct timespec timestamp;             /**< Collection timestamp (nanosec precision) */
 } AuroraWorkerMetricEntry;
 
 #ifdef __cplusplus

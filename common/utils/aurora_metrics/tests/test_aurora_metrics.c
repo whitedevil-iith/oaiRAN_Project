@@ -148,23 +148,25 @@ void test_shared_memory(void)
   
   /* Read node metric */
   double value = 0.0;
-  time_t timestamp = 0;
+  struct timespec timestamp;
+  memset(&timestamp, 0, sizeof(timestamp));
   ret = aurora_metrics_shm_read_node_metric(handle, "test_node",
                                              AURORA_METRIC_SINR_AVERAGE,
                                              &value, &timestamp);
   assert(ret == 0);
   assert(fabs(value - 25.5) < EPSILON);
-  assert(timestamp > 0);
-  printf("  Node metric read: %.2f at %ld\n", value, timestamp);
+  assert(timestamp.tv_sec > 0 || timestamp.tv_nsec > 0);
+  printf("  Node metric read: %.2f at %ld.%09ld\n", value, 
+         timestamp.tv_sec, timestamp.tv_nsec);
   
   /* Write worker metric */
   AuroraWorkerMetricEntry worker_entry;
   memset(&worker_entry, 0, sizeof(worker_entry));
   worker_entry.worker_id = 12345;
   strncpy(worker_entry.worker_name, "test_worker", AURORA_MAX_NAME_LEN - 1);
-  worker_entry.cpu_time = 1.5;
+  worker_entry.cpu_time_delta = 0.15;  /* Delta, not total */
   worker_entry.memory_rss = 1024000.0;
-  worker_entry.timestamp = time(NULL);
+  clock_gettime(CLOCK_REALTIME, &worker_entry.timestamp);
   
   ret = aurora_metrics_shm_write_worker_metric(handle, &worker_entry);
   assert(ret == 0);
@@ -177,9 +179,9 @@ void test_shared_memory(void)
   assert(ret == 0);
   assert(read_entry.worker_id == 12345);
   assert(strcmp(read_entry.worker_name, "test_worker") == 0);
-  assert(fabs(read_entry.cpu_time - 1.5) < EPSILON);
-  printf("  Worker metric read: %s, CPU: %.2f\n", 
-         read_entry.worker_name, read_entry.cpu_time);
+  assert(fabs(read_entry.cpu_time_delta - 0.15) < EPSILON);
+  printf("  Worker metric read: %s, CPU delta: %.2f\n", 
+         read_entry.worker_name, read_entry.cpu_time_delta);
   
   /* Connect from another handle */
   AuroraMetricsShmHandle *handle2 = aurora_metrics_shm_connect(TEST_SHM_NAME);
@@ -207,12 +209,19 @@ void test_worker_metrics(void)
   
   pid_t self_pid = getpid();
   
-  /* Test CPU reading */
+  /* Test fast CPU reading */
   double cpu_time = 0.0;
-  int ret = aurora_worker_read_cpu(self_pid, &cpu_time);
+  int ret = aurora_worker_read_cpu_fast(self_pid, &cpu_time);
   assert(ret == 0);
   assert(cpu_time >= 0.0);
-  printf("  CPU time: %.4f seconds\n", cpu_time);
+  printf("  CPU time (fast): %.4f seconds\n", cpu_time);
+  
+  /* Test proc CPU reading */
+  cpu_time = 0.0;
+  ret = aurora_worker_read_cpu_proc(self_pid, &cpu_time);
+  assert(ret == 0);
+  assert(cpu_time >= 0.0);
+  printf("  CPU time (proc): %.4f seconds\n", cpu_time);
   
   /* Test memory reading */
   double rss = 0.0, heap = 0.0;
@@ -233,24 +242,26 @@ void test_worker_metrics(void)
   assert(ret == 0);
   printf("  I/O Read: %.0f bytes, Write: %.0f bytes\n", read_bytes, write_bytes);
   
-  /* Test collect all */
-  AuroraWorkerMetricEntry entry;
-  memset(&entry, 0, sizeof(entry));
-  entry.worker_id = (uint32_t)self_pid;
-  strncpy(entry.worker_name, "test", AURORA_MAX_NAME_LEN - 1);
+  /* Test collect raw */
+  AuroraWorkerRawMetrics raw;
+  memset(&raw, 0, sizeof(raw));
   
-  ret = aurora_worker_collect_all(self_pid, &entry);
+  ret = aurora_worker_collect_raw(self_pid, &raw);
   assert(ret == 0);
-  assert(entry.cpu_time >= 0.0);
-  assert(entry.memory_rss > 0.0);
-  printf("  Collected all metrics for PID %d\n", self_pid);
+  assert(raw.cpu_time_total >= 0.0);
+  assert(raw.memory_rss > 0.0);
+  assert(raw.timestamp.tv_sec > 0 || raw.timestamp.tv_nsec > 0);
+  printf("  Collected raw metrics for PID %d\n", self_pid);
+  printf("  Raw CPU total: %.4f, RSS: %.0f, timestamp: %ld.%09ld\n",
+         raw.cpu_time_total, raw.memory_rss, 
+         raw.timestamp.tv_sec, raw.timestamp.tv_nsec);
   
   printf("Worker metrics tests passed!\n\n");
 }
 
 void test_collector(void)
 {
-  printf("Testing collector...\n");
+  printf("Testing collector with delta computation...\n");
   
   /* Remove any existing test shared memory */
   char file[256];
@@ -270,6 +281,7 @@ void test_collector(void)
   AuroraMetricCollector collector;
   int ret = aurora_collector_init(&collector, handle, &config);
   assert(ret == 0);
+  assert(collector.has_prev_raw == false);
   printf("  Collector initialized\n");
   
   /* Start collector */
@@ -277,8 +289,8 @@ void test_collector(void)
   assert(ret == 0);
   printf("  Collector started\n");
   
-  /* Let it collect for a bit */
-  usleep(300000);  /* 300ms */
+  /* Let it collect for a bit to test delta computation */
+  usleep(350000);  /* 350ms - should get 3-4 collections */
   
   /* Stop collector */
   ret = aurora_collector_stop(&collector);
@@ -289,6 +301,22 @@ void test_collector(void)
   AuroraMetricsShmHeader *header = aurora_metrics_shm_get_header(handle);
   assert(header->num_active_workers > 0);
   printf("  Collected metrics for %d workers\n", header->num_active_workers);
+  
+  /* Check that we have delta values (not monotonic totals) */
+  AuroraWorkerMetricEntry entry;
+  ret = aurora_metrics_shm_read_worker_metric(handle, (uint32_t)getpid(), &entry);
+  if (ret == 0) {
+    printf("  Last worker entry:\n");
+    printf("    CPU delta: %.6f seconds\n", entry.cpu_time_delta);
+    printf("    Memory RSS: %.0f bytes\n", entry.memory_rss);
+    printf("    Net TX delta: %.0f bytes\n", entry.net_tx_bytes_delta);
+    printf("    Timestamp: %ld.%09ld\n", 
+           entry.timestamp.tv_sec, entry.timestamp.tv_nsec);
+    
+    /* Delta should be small for a 100ms interval */
+    assert(entry.cpu_time_delta >= 0.0);
+    assert(entry.cpu_time_delta < 1.0);  /* Should be much less than 1 second */
+  }
   
   /* Cleanup */
   aurora_metrics_shm_destroy(handle);

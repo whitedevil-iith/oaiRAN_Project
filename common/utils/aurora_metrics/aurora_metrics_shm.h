@@ -60,7 +60,7 @@ typedef struct {
   uint32_t num_active_nodes;              /**< Number of active nodes */
   uint32_t max_workers;                   /**< Maximum number of workers */
   uint32_t num_active_workers;            /**< Number of active workers */
-  time_t last_update;                     /**< Last update timestamp */
+  struct timespec last_update;            /**< Last update timestamp (nanosec precision) */
   pthread_mutex_t mutex;                  /**< Mutex for synchronization */
   AuroraNodeMetricEntry node_entries[AURORA_MAX_NODES];       /**< Node metric entries */
   AuroraWorkerMetricEntry worker_entries[AURORA_MAX_WORKERS]; /**< Worker metric entries */
@@ -128,14 +128,14 @@ int aurora_metrics_shm_write_worker_metric(AuroraMetricsShmHandle *handle,
  * @param node_name Name of the node
  * @param metric_id Metric identifier
  * @param value Output: metric value
- * @param timestamp Output: metric timestamp
+ * @param timestamp Output: metric timestamp (nanosec precision)
  * @return 0 on success, -1 on failure
  */
 int aurora_metrics_shm_read_node_metric(AuroraMetricsShmHandle *handle,
                                          const char *node_name,
                                          AuroraMetricId metric_id,
                                          double *value,
-                                         time_t *timestamp);
+                                         struct timespec *timestamp);
 
 /**
  * @brief Read worker metrics

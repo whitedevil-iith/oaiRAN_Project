@@ -118,7 +118,7 @@ AuroraMetricsShmHandle *aurora_metrics_shm_create(const char *name, size_t max_n
   header->max_workers = max_workers;
   header->num_active_nodes = 0;
   header->num_active_workers = 0;
-  header->last_update = time(NULL);
+  clock_gettime(CLOCK_REALTIME, &header->last_update);
   
   if (init_process_shared_mutex(&header->mutex) != 0) {
     fprintf(stderr, "Failed to initialize mutex\n");
@@ -248,7 +248,7 @@ int aurora_metrics_shm_write_node_metric(AuroraMetricsShmHandle *handle,
   for (uint32_t i = 0; i < entry->num_metrics; i++) {
     if (entry->metrics[i].metric_id == metric_id) {
       entry->metrics[i].value = value;
-      entry->metrics[i].timestamp = time(NULL);
+      clock_gettime(CLOCK_REALTIME, &entry->metrics[i].timestamp);
       found = true;
       break;
     }
@@ -262,11 +262,11 @@ int aurora_metrics_shm_write_node_metric(AuroraMetricsShmHandle *handle,
     }
     entry->metrics[entry->num_metrics].metric_id = metric_id;
     entry->metrics[entry->num_metrics].value = value;
-    entry->metrics[entry->num_metrics].timestamp = time(NULL);
+    clock_gettime(CLOCK_REALTIME, &entry->metrics[entry->num_metrics].timestamp);
     entry->num_metrics++;
   }
   
-  header->last_update = time(NULL);
+  clock_gettime(CLOCK_REALTIME, &header->last_update);
   pthread_mutex_unlock(&header->mutex);
   
   return 0;
@@ -312,7 +312,7 @@ int aurora_metrics_shm_write_worker_metric(AuroraMetricsShmHandle *handle,
   
   /* Copy entry data */
   memcpy(worker_entry, entry, sizeof(AuroraWorkerMetricEntry));
-  header->last_update = time(NULL);
+  clock_gettime(CLOCK_REALTIME, &header->last_update);
   
   pthread_mutex_unlock(&header->mutex);
   
@@ -323,7 +323,7 @@ int aurora_metrics_shm_read_node_metric(AuroraMetricsShmHandle *handle,
                                          const char *node_name,
                                          AuroraMetricId metric_id,
                                          double *value,
-                                         time_t *timestamp)
+                                         struct timespec *timestamp)
 {
   if (handle == NULL || node_name == NULL || value == NULL) {
     fprintf(stderr, "Invalid parameters for read_node_metric\n");

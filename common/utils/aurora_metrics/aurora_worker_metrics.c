@@ -28,8 +28,38 @@
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
+#include <sys/resource.h>
 
-int aurora_worker_read_cpu(pid_t pid, double *cpu_time)
+int aurora_worker_read_cpu_fast(pid_t pid, double *cpu_time)
+{
+  if (cpu_time == NULL) {
+    fprintf(stderr, "cpu_time is NULL\n");
+    return -1;
+  }
+  
+  /* For self process, use getrusage (eBPF-style fast syscall) */
+  if (pid == getpid()) {
+    struct rusage usage;
+    if (getrusage(RUSAGE_SELF, &usage) != 0) {
+      fprintf(stderr, "getrusage failed: %s\n", strerror(errno));
+      return -1;
+    }
+    
+    /* Convert user time and system time to seconds */
+    double user_time = (double)usage.ru_utime.tv_sec + 
+                       (double)usage.ru_utime.tv_usec / 1000000.0;
+    double sys_time = (double)usage.ru_stime.tv_sec + 
+                      (double)usage.ru_stime.tv_usec / 1000000.0;
+    
+    *cpu_time = user_time + sys_time;
+    return 0;
+  }
+  
+  /* For other processes, fall back to /proc */
+  return aurora_worker_read_cpu_proc(pid, cpu_time);
+}
+
+int aurora_worker_read_cpu_proc(pid_t pid, double *cpu_time)
 {
   if (cpu_time == NULL) {
     fprintf(stderr, "cpu_time is NULL\n");
@@ -187,33 +217,38 @@ int aurora_worker_read_io(pid_t pid, double *read_bytes, double *write_bytes)
   return 0;
 }
 
-int aurora_worker_collect_all(pid_t pid, AuroraWorkerMetricEntry *entry)
+int aurora_worker_collect_raw(pid_t pid, AuroraWorkerRawMetrics *raw)
 {
-  if (entry == NULL) {
-    fprintf(stderr, "Entry is NULL\n");
+  if (raw == NULL) {
+    fprintf(stderr, "Raw metrics structure is NULL\n");
     return -1;
   }
   
-  /* Collect all metrics */
-  if (aurora_worker_read_cpu(pid, &entry->cpu_time) != 0) {
-    entry->cpu_time = 0.0;
+  /* Get timestamp first */
+  if (clock_gettime(CLOCK_MONOTONIC, &raw->timestamp) != 0) {
+    fprintf(stderr, "Failed to get timestamp: %s\n", strerror(errno));
+    return -1;
   }
   
-  if (aurora_worker_read_memory(pid, &entry->memory_rss, &entry->memory_heap) != 0) {
-    entry->memory_rss = 0.0;
-    entry->memory_heap = 0.0;
+  /* Collect all metrics - store monotonic/total values */
+  if (aurora_worker_read_cpu_fast(pid, &raw->cpu_time_total) != 0) {
+    raw->cpu_time_total = 0.0;
   }
   
-  if (aurora_worker_read_network(pid, &entry->net_tx_bytes, &entry->net_rx_bytes) != 0) {
-    entry->net_tx_bytes = 0.0;
-    entry->net_rx_bytes = 0.0;
+  if (aurora_worker_read_memory(pid, &raw->memory_rss, &raw->memory_heap) != 0) {
+    raw->memory_rss = 0.0;
+    raw->memory_heap = 0.0;
   }
   
-  if (aurora_worker_read_io(pid, &entry->fs_read_bytes, &entry->fs_write_bytes) != 0) {
-    entry->fs_read_bytes = 0.0;
-    entry->fs_write_bytes = 0.0;
+  if (aurora_worker_read_network(pid, &raw->net_tx_bytes_total, &raw->net_rx_bytes_total) != 0) {
+    raw->net_tx_bytes_total = 0.0;
+    raw->net_rx_bytes_total = 0.0;
   }
   
-  entry->timestamp = time(NULL);
+  if (aurora_worker_read_io(pid, &raw->fs_read_bytes_total, &raw->fs_write_bytes_total) != 0) {
+    raw->fs_read_bytes_total = 0.0;
+    raw->fs_write_bytes_total = 0.0;
+  }
+  
   return 0;
 }

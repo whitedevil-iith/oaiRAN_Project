@@ -21,13 +21,14 @@
 
 /**
  * @file aurora_metrics_collector.h
- * @brief Metric collection and statistical computation
+ * @brief Metric collection with delta computation for worker metrics
  */
 
 #pragma once
 
 #include "aurora_metrics_shm.h"
 #include "aurora_metrics_config.h"
+#include "aurora_worker_metrics.h"
 #include <pthread.h>
 #include <stdbool.h>
 
@@ -96,13 +97,16 @@ double aurora_compute_kurtosis(const double *values, size_t count);
 double aurora_compute_iqr(double *values, size_t count);
 
 /**
- * @brief Metric collector structure
+ * @brief Metric collector structure with delta tracking
  */
 typedef struct {
   AuroraMetricsShmHandle *shm_handle;     /**< Shared memory handle */
   AuroraCollectorConfig config;           /**< Configuration */
   bool running;                           /**< Is collector running? */
   pthread_t collection_thread;            /**< Collection thread */
+  /* Previous raw values for delta computation */
+  AuroraWorkerRawMetrics prev_raw;        /**< Previous raw metrics */
+  bool has_prev_raw;                      /**< Do we have previous raw metrics? */
 } AuroraMetricCollector;
 
 /**

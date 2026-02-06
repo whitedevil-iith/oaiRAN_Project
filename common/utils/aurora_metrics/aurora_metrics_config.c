@@ -33,7 +33,7 @@ void aurora_config_init_defaults(AuroraCollectorConfig *config)
   config->shm_name[AURORA_MAX_NAME_LEN - 1] = '\0';
   config->shm_max_nodes = 16;
   config->shm_max_workers = 32;
-  config->collection_interval_ms = 1000;  /* 1 second */
+  config->collection_interval_ms = 100;  /* 100ms for high-frequency collection */
   config->enable_node_metrics = true;
   config->enable_worker_metrics = true;
   config->enable_statistical_metrics = false;
