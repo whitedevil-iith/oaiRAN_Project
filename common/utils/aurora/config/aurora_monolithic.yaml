@@ -1,0 +1,76 @@
+# Aurora telemetry configuration for Monolithic gNB (CU+DU combined)
+#
+# This configuration collects ALL metrics from both CU and DU layers.
+# Used when running a monolithic gNB deployment.
+
+node:
+  type: MONOLITHIC
+
+worker_monitoring:
+  enabled: true
+  workers:
+    # CU workers
+    - oai:gnb-pdcp
+    - oai:gnb-sdap
+    - oai:gnb-f1c
+    - oai:gnb-f1u
+    # DU workers
+    - oai:gnb-L1-rx
+    - oai:gnb-L1-tx
+    - oai:gnb-prach
+    - oai:gnb-prach-br
+
+# Metrics collected by Monolithic Aurora producer (RAW only)
+# Combines all CU + DU metrics
+metrics:
+  node:
+    # CU-layer metrics
+    - pdcp_tx_packets
+    - pdcp_rx_packets
+    - pdcp_tx_bytes
+    - pdcp_rx_bytes
+    - pdcp_rx_oo_packets
+    - pdcp_rx_dd_packets
+    - sdap_tx_packets
+    - sdap_rx_packets
+    - f1c_sctp_tx_bytes
+    - f1c_sctp_rx_bytes
+    - f1u_udp_tx_bytes
+    - f1u_udp_rx_bytes
+    - e2_kpm_indications
+    - e2_rc_controls
+    - slice_dl_bytes
+    - slice_ul_bytes
+    # DU-layer metrics
+    - mac_dl_tbs
+    - mac_ul_tbs
+    - mac_dl_prb_used
+    - mac_ul_prb_used
+    - mac_dl_prb_total
+    - mac_ul_prb_total
+    - rlc_tx_packets
+    - rlc_rx_packets
+    - rlc_tx_bytes
+    - rlc_rx_bytes
+    - phy_sinr
+    - phy_csi_rs
+    - phy_bsr
+    - phy_harq_ack
+    - phy_harq_nack
+    - phy_crc_pass
+    - phy_crc_fail
+    - phy_prach_detected
+
+  traffic:
+    - Bhtx_pdcp
+    - Bhrx_pdcp
+    - Mhtx_f1c
+    - Mhrx_f1c
+    - F1u_rlc_tx
+    - F1u_rlc_rx
+    - Bhtx_mac
+    - Bhrx_mac
+    - Rlc_mac_tx
+    - Rlc_mac_rx
+    - Mac_rlc_tx
+    - Mac_rlc_rx

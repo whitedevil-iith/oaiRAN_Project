@@ -1,0 +1,14 @@
+add_executable(test_aurora_stats test_aurora_stats.c)
+target_link_libraries(test_aurora_stats aurora_producer aurora_receiver m pthread rt)
+add_dependencies(tests test_aurora_stats)
+add_test(NAME test_aurora_stats COMMAND test_aurora_stats)
+
+add_executable(test_aurora_producer test_aurora_producer.c)
+target_link_libraries(test_aurora_producer aurora_producer pthread rt)
+add_dependencies(tests test_aurora_producer)
+add_test(NAME test_aurora_producer COMMAND test_aurora_producer)
+
+add_executable(test_aurora_config test_aurora_config.c)
+target_link_libraries(test_aurora_config aurora_producer pthread rt)
+add_dependencies(tests test_aurora_config)
+add_test(NAME test_aurora_config COMMAND test_aurora_config)
