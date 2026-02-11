@@ -1,0 +1,45 @@
+# Aurora telemetry configuration for CU (Central Unit)
+#
+# This configuration is used when deploying Aurora alongside a CU node.
+# The CU collects PDCP, SDAP, F1-C, F1-U, E2, and slice-level metrics.
+# PHY-level metrics (SINR, PRACH, HARQ PHY counters) are NOT collected.
+
+node:
+  type: CU
+
+worker_monitoring:
+  enabled: true
+  workers:
+    - oai:gnb-pdcp
+    - oai:gnb-sdap
+    - oai:gnb-f1c
+    - oai:gnb-f1u
+
+# Metrics collected by CU Aurora producer (RAW only)
+# Statistical computation is offloaded to the receiver sidecar
+metrics:
+  node:
+    - pdcp_tx_packets
+    - pdcp_rx_packets
+    - pdcp_tx_bytes
+    - pdcp_rx_bytes
+    - pdcp_rx_oo_packets      # out-of-order
+    - pdcp_rx_dd_packets      # dropped/discarded
+    - sdap_tx_packets
+    - sdap_rx_packets
+    - f1c_sctp_tx_bytes
+    - f1c_sctp_rx_bytes
+    - f1u_udp_tx_bytes
+    - f1u_udp_rx_bytes
+    - e2_kpm_indications
+    - e2_rc_controls
+    - slice_dl_bytes
+    - slice_ul_bytes
+
+  traffic:
+    - Bhtx_pdcp
+    - Bhrx_pdcp
+    - Mhtx_f1c
+    - Mhrx_f1c
+    - F1u_rlc_tx
+    - F1u_rlc_rx

@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-{{ .Values.node.type | lower }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: oai-ran
+    component: {{ .Values.node.type | lower }}
+    aurora: enabled
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: oai-ran
+      component: {{ .Values.node.type | lower }}
+  template:
+    metadata:
+      labels:
+        app: oai-ran
+        component: {{ .Values.node.type | lower }}
+        aurora: enabled
+    spec:
+      # shareProcessNamespace is required so the Aurora receiver sidecar
+      # can observe producer process state for eBPF-based worker monitoring
+      # and stale-producer detection.
+      shareProcessNamespace: true
+      containers:
+        # ── Container 1: RAN Node + Aurora Producer ──────────────
+        - name: {{ .Values.node.type | lower }}-aurora-producer
+          image: "{{ .Values.global.image.registry }}/{{ .Values.producer.image.repository }}:{{ .Values.producer.image.tag }}"
+          imagePullPolicy: {{ .Values.global.image.pullPolicy }}
+          env:
+            - name: AURORA_NODE_TYPE
+              value: {{ .Values.node.type | quote }}
+            - name: AURORA_SHM_PATH
+              value: {{ .Values.sharedMemory.mountPath }}
+            {{- if .Values.workerMonitoring.enabled }}
+            - name: AURORA_WORKER_MONITORING
+              value: "true"
+            {{- end }}
+          securityContext:
+            privileged: {{ .Values.producer.securityContext.privileged }}
+            capabilities:
+              add:
+              {{- range .Values.producer.securityContext.capabilities.add }}
+                - {{ . }}
+              {{- end }}
+          resources:
+            {{- toYaml .Values.producer.resources | nindent 12 }}
+          volumeMounts:
+            - name: aurora-ipc
+              mountPath: {{ .Values.sharedMemory.mountPath }}
+
+        # ── Container 2: Aurora Receiver (Sidecar) ───────────────
+        - name: aurora-receiver
+          image: "{{ .Values.global.image.registry }}/{{ .Values.receiver.image.repository }}:{{ .Values.receiver.image.tag }}"
+          imagePullPolicy: {{ .Values.global.image.pullPolicy }}
+          env:
+            - name: AURORA_NODE_TYPE
+              value: {{ .Values.node.type | quote }}
+            - name: AURORA_SHM_PATH
+              value: {{ .Values.sharedMemory.mountPath }}
+            - name: AURORA_CSV_PATH
+              value: {{ .Values.receiver.csvOutputPath | quote }}
+          resources:
+            {{- toYaml .Values.receiver.resources | nindent 12 }}
+          volumeMounts:
+            - name: aurora-ipc
+              mountPath: {{ .Values.sharedMemory.mountPath }}
+            - name: aurora-data
+              mountPath: /aurora-data
+
+      volumes:
+        - name: aurora-ipc
+          emptyDir:
+            medium: {{ .Values.sharedMemory.medium }}
+            sizeLimit: {{ .Values.sharedMemory.sizeLimit }}
+        - name: aurora-data
+          emptyDir: {}
