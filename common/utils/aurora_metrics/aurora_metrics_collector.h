@@ -29,6 +29,8 @@
 #include "aurora_metrics_shm.h"
 #include "aurora_metrics_config.h"
 #include "aurora_worker_metrics.h"
+#include "aurora_oru_metrics.h"
+#include "aurora_e2_metrics.h"
 #include <pthread.h>
 #include <stdbool.h>
 
@@ -105,8 +107,12 @@ typedef struct {
   bool running;                           /**< Is collector running? */
   pthread_t collection_thread;            /**< Collection thread */
   /* Previous raw values for delta computation */
-  AuroraWorkerRawMetrics prev_raw;        /**< Previous raw metrics */
-  bool has_prev_raw;                      /**< Do we have previous raw metrics? */
+  AuroraWorkerRawMetrics prev_raw;        /**< Previous raw worker metrics */
+  bool has_prev_raw;                      /**< Do we have previous raw worker metrics? */
+  AuroraOruRawMetrics prev_oru;           /**< Previous raw O-RU metrics */
+  bool has_prev_oru;                      /**< Do we have previous raw O-RU metrics? */
+  AuroraE2RawMetrics prev_e2;             /**< Previous raw E2 metrics */
+  bool has_prev_e2;                       /**< Do we have previous raw E2 metrics? */
 } AuroraMetricCollector;
 
 /**

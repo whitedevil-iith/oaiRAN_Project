@@ -37,6 +37,8 @@ void aurora_config_init_defaults(AuroraCollectorConfig *config)
   config->enable_node_metrics = true;
   config->enable_worker_metrics = true;
   config->enable_statistical_metrics = false;
+  config->enable_oru_metrics = true;
+  config->enable_e2_metrics = true;
 }
 
 int aurora_config_validate(const AuroraCollectorConfig *config)

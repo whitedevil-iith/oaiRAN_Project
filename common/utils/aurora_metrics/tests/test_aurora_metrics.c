@@ -37,6 +37,8 @@
 #include "aurora_metrics_collector.h"
 #include "aurora_worker_metrics.h"
 #include "aurora_metrics_config.h"
+#include "aurora_oru_metrics.h"
+#include "aurora_e2_metrics.h"
 
 #define TEST_SHM_NAME "test_aurora_metrics"
 #define EPSILON 0.0001
@@ -323,6 +325,312 @@ void test_collector(void)
   printf("Collector tests passed!\n\n");
 }
 
+void test_oru_metrics(void)
+{
+  printf("Testing O-RU metrics collection...\n");
+
+  /* Remove any existing test shared memory */
+  char file[256];
+  snprintf(file, sizeof(file), "/dev/shm/%s", TEST_SHM_NAME);
+  remove(file);
+
+  /* Create shared memory */
+  AuroraMetricsShmHandle *handle = aurora_metrics_shm_create(TEST_SHM_NAME, 16, 32);
+  assert(handle != NULL);
+
+  /* Collect first raw snapshot */
+  AuroraOruRawMetrics raw1;
+  memset(&raw1, 0, sizeof(raw1));
+  int ret = aurora_oru_collect_raw("oru_test", &raw1);
+  assert(ret == 0);
+  assert(raw1.valid == true);
+  assert(raw1.timestamp.tv_sec > 0 || raw1.timestamp.tv_nsec > 0);
+  printf("  First O-RU raw snapshot collected\n");
+  printf("    SINR avg: %.1f, min: %.1f, max: %.1f\n",
+         raw1.sinr_average, raw1.sinr_min, raw1.sinr_max);
+  printf("    PRB DL: %.1f%%, UL: %.1f%%\n", raw1.prb_util_dl, raw1.prb_util_ul);
+  printf("    DL bytes total: %.0f, UL bytes total: %.0f\n",
+         raw1.dl_total_bytes, raw1.ul_total_bytes);
+
+  /* Write first snapshot (no deltas available) */
+  ret = aurora_oru_write_metrics(handle, "oru_test", &raw1, NULL);
+  assert(ret == 0);
+  printf("  First O-RU metrics written to SHM\n");
+
+  /* Read back gauge metrics */
+  double sinr_avg = 0.0;
+  ret = aurora_metrics_shm_read_node_metric(handle, "oru_test",
+                                             AURORA_METRIC_SINR_AVERAGE,
+                                             &sinr_avg, NULL);
+  assert(ret == 0);
+  assert(fabs(sinr_avg - raw1.sinr_average) < EPSILON);
+  printf("  SINR average read back: %.1f\n", sinr_avg);
+
+  double prb_dl = 0.0;
+  ret = aurora_metrics_shm_read_node_metric(handle, "oru_test",
+                                             AURORA_METRIC_PRB_UTIL_DL,
+                                             &prb_dl, NULL);
+  assert(ret == 0);
+  printf("  PRB DL utilization: %.1f%%\n", prb_dl);
+
+  /* First snapshot delta metrics should be 0 */
+  double dl_bytes_delta = -1.0;
+  ret = aurora_metrics_shm_read_node_metric(handle, "oru_test",
+                                             AURORA_METRIC_DL_TOTAL_BYTES_DELTA,
+                                             &dl_bytes_delta, NULL);
+  assert(ret == 0);
+  assert(fabs(dl_bytes_delta) < EPSILON);  /* Should be 0 */
+  printf("  First DL bytes delta: %.0f (expected 0)\n", dl_bytes_delta);
+
+  /* Collect second raw snapshot */
+  AuroraOruRawMetrics raw2;
+  memset(&raw2, 0, sizeof(raw2));
+  ret = aurora_oru_collect_raw("oru_test", &raw2);
+  assert(ret == 0);
+  assert(raw2.valid == true);
+
+  /* Monotonic counters must increase */
+  assert(raw2.dl_total_bytes >= raw1.dl_total_bytes);
+  assert(raw2.ul_total_bytes >= raw1.ul_total_bytes);
+  printf("  Second O-RU raw snapshot collected\n");
+  printf("    DL bytes total: %.0f (prev: %.0f)\n",
+         raw2.dl_total_bytes, raw1.dl_total_bytes);
+
+  /* Write second snapshot (with deltas) */
+  ret = aurora_oru_write_metrics(handle, "oru_test", &raw2, &raw1);
+  assert(ret == 0);
+  printf("  Second O-RU metrics written with deltas\n");
+
+  /* Read back delta metrics - should be non-negative */
+  ret = aurora_metrics_shm_read_node_metric(handle, "oru_test",
+                                             AURORA_METRIC_DL_TOTAL_BYTES_DELTA,
+                                             &dl_bytes_delta, NULL);
+  assert(ret == 0);
+  assert(dl_bytes_delta >= 0.0);
+  printf("  DL bytes delta: %.0f\n", dl_bytes_delta);
+
+  double dl_loss = 0.0;
+  ret = aurora_metrics_shm_read_node_metric(handle, "oru_test",
+                                             AURORA_METRIC_DL_HARQ_LOSS_RATE,
+                                             &dl_loss, NULL);
+  assert(ret == 0);
+  assert(dl_loss >= 0.0 && dl_loss <= 1.0);
+  printf("  DL HARQ loss rate: %.4f\n", dl_loss);
+
+  /* Test NULL parameter handling */
+  ret = aurora_oru_collect_raw("test", NULL);
+  assert(ret == -1);
+
+  ret = aurora_oru_write_metrics(NULL, "test", &raw1, NULL);
+  assert(ret == -1);
+
+  printf("  Edge case tests passed\n");
+
+  /* Cleanup */
+  aurora_metrics_shm_destroy(handle);
+  printf("O-RU metrics tests passed!\n\n");
+}
+
+void test_e2_metrics(void)
+{
+  printf("Testing E2 KPM metrics collection...\n");
+
+  /* Remove any existing test shared memory */
+  char file[256];
+  snprintf(file, sizeof(file), "/dev/shm/%s", TEST_SHM_NAME);
+  remove(file);
+
+  /* Create shared memory */
+  AuroraMetricsShmHandle *handle = aurora_metrics_shm_create(TEST_SHM_NAME, 16, 32);
+  assert(handle != NULL);
+
+  /* Collect first raw snapshot */
+  AuroraE2RawMetrics raw1;
+  memset(&raw1, 0, sizeof(raw1));
+  int ret = aurora_e2_collect_raw("gnb_du_test", AURORA_NODE_DU, &raw1);
+  assert(ret == 0);
+  assert(raw1.valid == true);
+  assert(raw1.timestamp.tv_sec > 0 || raw1.timestamp.tv_nsec > 0);
+  printf("  First E2 raw snapshot collected\n");
+  printf("    PDCP DL vol: %.2f Mb, UL vol: %.2f Mb\n",
+         raw1.pdcp_sdu_vol_dl, raw1.pdcp_sdu_vol_ul);
+  printf("    RLC delay DL: %.1f us\n", raw1.rlc_sdu_delay_dl);
+  printf("    UE Thp DL: %.0f kbps, UL: %.0f kbps\n",
+         raw1.ue_thp_dl, raw1.ue_thp_ul);
+  printf("    PRB Tot DL: %.1f%%, UL: %.1f%%\n",
+         raw1.prb_tot_dl, raw1.prb_tot_ul);
+
+  /* Write first snapshot (no deltas for PDCP volumes) */
+  ret = aurora_e2_write_metrics(handle, "gnb_du_test", AURORA_NODE_DU, &raw1, NULL);
+  assert(ret == 0);
+  printf("  First E2 metrics written to SHM\n");
+
+  /* Read back gauge metrics */
+  double rlc_delay = 0.0;
+  ret = aurora_metrics_shm_read_node_metric(handle, "gnb_du_test",
+                                             AURORA_METRIC_DRB_RLC_SDU_DELAY_DL,
+                                             &rlc_delay, NULL);
+  assert(ret == 0);
+  assert(fabs(rlc_delay - raw1.rlc_sdu_delay_dl) < EPSILON);
+  printf("  RLC SDU Delay DL read back: %.1f us\n", rlc_delay);
+
+  double thp_dl = 0.0;
+  ret = aurora_metrics_shm_read_node_metric(handle, "gnb_du_test",
+                                             AURORA_METRIC_DRB_UE_THP_DL,
+                                             &thp_dl, NULL);
+  assert(ret == 0);
+  assert(thp_dl >= 0.0);
+  printf("  UE Throughput DL: %.0f kbps\n", thp_dl);
+
+  /* First snapshot: PDCP volume deltas should be 0 */
+  double pdcp_dl_delta = -1.0;
+  ret = aurora_metrics_shm_read_node_metric(handle, "gnb_du_test",
+                                             AURORA_METRIC_DRB_PDCP_SDU_VOL_DL,
+                                             &pdcp_dl_delta, NULL);
+  assert(ret == 0);
+  assert(fabs(pdcp_dl_delta) < EPSILON);  /* Should be 0 */
+  printf("  First PDCP DL volume delta: %.4f (expected 0)\n", pdcp_dl_delta);
+
+  /* Collect second raw snapshot */
+  AuroraE2RawMetrics raw2;
+  memset(&raw2, 0, sizeof(raw2));
+  ret = aurora_e2_collect_raw("gnb_du_test", AURORA_NODE_DU, &raw2);
+  assert(ret == 0);
+  assert(raw2.valid == true);
+
+  /* PDCP volumes are monotonic */
+  assert(raw2.pdcp_sdu_vol_dl >= raw1.pdcp_sdu_vol_dl);
+  assert(raw2.pdcp_sdu_vol_ul >= raw1.pdcp_sdu_vol_ul);
+  printf("  Second E2 raw snapshot collected\n");
+  printf("    PDCP DL vol: %.2f Mb (prev: %.2f)\n",
+         raw2.pdcp_sdu_vol_dl, raw1.pdcp_sdu_vol_dl);
+
+  /* Write second snapshot (with deltas) */
+  ret = aurora_e2_write_metrics(handle, "gnb_du_test", AURORA_NODE_DU, &raw2, &raw1);
+  assert(ret == 0);
+  printf("  Second E2 metrics written with deltas\n");
+
+  /* Read back PDCP volume delta */
+  ret = aurora_metrics_shm_read_node_metric(handle, "gnb_du_test",
+                                             AURORA_METRIC_DRB_PDCP_SDU_VOL_DL,
+                                             &pdcp_dl_delta, NULL);
+  assert(ret == 0);
+  assert(pdcp_dl_delta >= 0.0);
+  printf("  PDCP DL volume delta: %.4f Mb\n", pdcp_dl_delta);
+
+  /* PRB utilization should be in valid range */
+  double prb_dl = 0.0;
+  ret = aurora_metrics_shm_read_node_metric(handle, "gnb_du_test",
+                                             AURORA_METRIC_RRU_PRB_TOT_DL,
+                                             &prb_dl, NULL);
+  assert(ret == 0);
+  assert(prb_dl >= 0.0 && prb_dl <= 100.0);
+  printf("  PRB Tot DL: %.1f%%\n", prb_dl);
+
+  /* Test NULL parameter handling */
+  ret = aurora_e2_collect_raw("test", AURORA_NODE_DU, NULL);
+  assert(ret == -1);
+
+  ret = aurora_e2_write_metrics(NULL, "test", AURORA_NODE_DU, &raw1, NULL);
+  assert(ret == -1);
+
+  printf("  Edge case tests passed\n");
+
+  /* Cleanup */
+  aurora_metrics_shm_destroy(handle);
+  printf("E2 KPM metrics tests passed!\n\n");
+}
+
+void test_collector_with_oru_e2(void)
+{
+  printf("Testing collector with O-RU and E2 metrics...\n");
+
+  /* Remove any existing test shared memory */
+  char file[256];
+  snprintf(file, sizeof(file), "/dev/shm/%s", TEST_SHM_NAME);
+  remove(file);
+
+  /* Create shared memory */
+  AuroraMetricsShmHandle *handle = aurora_metrics_shm_create(TEST_SHM_NAME, 16, 32);
+  assert(handle != NULL);
+
+  /* Initialize config with all metrics enabled */
+  AuroraCollectorConfig config;
+  aurora_config_init_defaults(&config);
+  config.collection_interval_ms = 100;
+
+  /* Initialize collector */
+  AuroraMetricCollector collector;
+  int ret = aurora_collector_init(&collector, handle, &config);
+  assert(ret == 0);
+  assert(collector.has_prev_oru == false);
+  assert(collector.has_prev_e2 == false);
+  printf("  Collector initialized with O-RU and E2 enabled\n");
+
+  /* Start collector */
+  ret = aurora_collector_start(&collector);
+  assert(ret == 0);
+  printf("  Collector started\n");
+
+  /* Let it collect for a bit to get multiple deltas */
+  usleep(350000);  /* 350ms - about 3 collections at 100ms */
+
+  /* Stop collector */
+  ret = aurora_collector_stop(&collector);
+  assert(ret == 0);
+  printf("  Collector stopped\n");
+
+  /* Verify O-RU node was created */
+  AuroraMetricsShmHeader *header = aurora_metrics_shm_get_header(handle);
+  assert(header->num_active_nodes > 0);
+  printf("  Active nodes: %u\n", header->num_active_nodes);
+
+  /* Read O-RU metrics from shared memory */
+  double sinr = 0.0;
+  ret = aurora_metrics_shm_read_node_metric(handle, "oru_0",
+                                             AURORA_METRIC_SINR_AVERAGE,
+                                             &sinr, NULL);
+  if (ret == 0) {
+    printf("  O-RU SINR average: %.1f\n", sinr);
+  }
+
+  double prb_dl = 0.0;
+  ret = aurora_metrics_shm_read_node_metric(handle, "oru_0",
+                                             AURORA_METRIC_PRB_UTIL_DL,
+                                             &prb_dl, NULL);
+  if (ret == 0) {
+    assert(prb_dl >= 0.0 && prb_dl <= 100.0);
+    printf("  O-RU PRB DL: %.1f%%\n", prb_dl);
+  }
+
+  /* Read E2 metrics from shared memory */
+  double thp_dl = 0.0;
+  ret = aurora_metrics_shm_read_node_metric(handle, "gnb_du_0",
+                                             AURORA_METRIC_DRB_UE_THP_DL,
+                                             &thp_dl, NULL);
+  if (ret == 0) {
+    assert(thp_dl >= 0.0);
+    printf("  E2 UE Throughput DL: %.0f kbps\n", thp_dl);
+  }
+
+  double rlc_delay = 0.0;
+  ret = aurora_metrics_shm_read_node_metric(handle, "gnb_du_0",
+                                             AURORA_METRIC_DRB_RLC_SDU_DELAY_DL,
+                                             &rlc_delay, NULL);
+  if (ret == 0) {
+    assert(rlc_delay >= 0.0);
+    printf("  E2 RLC SDU Delay DL: %.1f us\n", rlc_delay);
+  }
+
+  /* Verify worker metrics still work alongside O-RU/E2 */
+  assert(header->num_active_workers > 0);
+  printf("  Active workers: %u\n", header->num_active_workers);
+
+  /* Cleanup */
+  aurora_metrics_shm_destroy(handle);
+  printf("Collector with O-RU and E2 tests passed!\n\n");
+}
+
 int main(void)
 {
   printf("=== Aurora Metrics Test Suite ===\n\n");
@@ -332,6 +640,9 @@ int main(void)
   test_shared_memory();
   test_worker_metrics();
   test_collector();
+  test_oru_metrics();
+  test_e2_metrics();
+  test_collector_with_oru_e2();
   
   printf("=== All tests passed! ===\n");
   return 0;

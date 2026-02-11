@@ -83,7 +83,27 @@ typedef enum {
   AURORA_METRIC_STD_DEV = 41,        /**< Standard deviation */
   AURORA_METRIC_SKEWNESS = 42,       /**< Skewness */
   AURORA_METRIC_KURTOSIS = 43,       /**< Kurtosis */
-  AURORA_METRIC_IQR = 44             /**< Interquartile range */
+  AURORA_METRIC_IQR = 44,            /**< Interquartile range */
+  
+  /* O-RU radio metrics */
+  AURORA_METRIC_RSRP_AVERAGE = 50,         /**< Reference Signal Received Power average (dBm) */
+  AURORA_METRIC_PUSCH_SNR = 51,            /**< PUSCH Signal-to-Noise Ratio (dB, x10 scaled) */
+  AURORA_METRIC_PRB_UTIL_DL = 52,          /**< PRB utilization downlink (percent) */
+  AURORA_METRIC_PRB_UTIL_UL = 53,          /**< PRB utilization uplink (percent) */
+  AURORA_METRIC_DL_TOTAL_BYTES_DELTA = 54, /**< DL total bytes this interval */
+  AURORA_METRIC_UL_TOTAL_BYTES_DELTA = 55, /**< UL total bytes this interval */
+  AURORA_METRIC_DL_ERRORS_DELTA = 56,      /**< DL HARQ errors this interval */
+  AURORA_METRIC_UL_ERRORS_DELTA = 57,      /**< UL CRC errors this interval */
+  AURORA_METRIC_NUM_ACTIVE_UES = 58,       /**< Number of active UEs (gauge) */
+  
+  /* E2 KPM metrics (3GPP TS 28.522) */
+  AURORA_METRIC_DRB_PDCP_SDU_VOL_DL = 60,  /**< DRB.PdcpSduVolumeDL (Megabits) */
+  AURORA_METRIC_DRB_PDCP_SDU_VOL_UL = 61,  /**< DRB.PdcpSduVolumeUL (Megabits) */
+  AURORA_METRIC_DRB_RLC_SDU_DELAY_DL = 62, /**< DRB.RlcSduDelayDl (microseconds) */
+  AURORA_METRIC_DRB_UE_THP_DL = 63,        /**< DRB.UEThpDl (kbps) */
+  AURORA_METRIC_DRB_UE_THP_UL = 64,        /**< DRB.UEThpUl (kbps) */
+  AURORA_METRIC_RRU_PRB_TOT_DL = 65,       /**< RRU.PrbTotDl (percent) */
+  AURORA_METRIC_RRU_PRB_TOT_UL = 66        /**< RRU.PrbTotUl (percent) */
 } AuroraMetricId;
 
 /**

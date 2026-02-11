@@ -28,6 +28,8 @@
 
 #include "aurora_metrics_collector.h"
 #include "aurora_worker_metrics.h"
+#include "aurora_oru_metrics.h"
+#include "aurora_e2_metrics.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -208,6 +210,10 @@ int aurora_collector_init(AuroraMetricCollector *collector,
   collector->running = false;
   collector->has_prev_raw = false;
   memset(&collector->prev_raw, 0, sizeof(AuroraWorkerRawMetrics));
+  collector->has_prev_oru = false;
+  memset(&collector->prev_oru, 0, sizeof(AuroraOruRawMetrics));
+  collector->has_prev_e2 = false;
+  memset(&collector->prev_e2, 0, sizeof(AuroraE2RawMetrics));
   
   return 0;
 }
@@ -324,8 +330,35 @@ int aurora_collector_collect_once(AuroraMetricCollector *collector)
     }
   }
   
-  /* Additional collection logic would go here */
-  /* For example, collecting from E2 interfaces, O-RU metrics, etc. */
-  
+  /* Collect O-RU radio metrics if enabled */
+  if (collector->config.enable_oru_metrics) {
+    AuroraOruRawMetrics current_oru;
+    memset(&current_oru, 0, sizeof(current_oru));
+
+    if (aurora_oru_collect_raw("oru_0", &current_oru) == 0) {
+      const AuroraOruRawMetrics *prev_ptr = collector->has_prev_oru ?
+                                            &collector->prev_oru : NULL;
+      aurora_oru_write_metrics(collector->shm_handle, "oru_0",
+                               &current_oru, prev_ptr);
+      memcpy(&collector->prev_oru, &current_oru, sizeof(AuroraOruRawMetrics));
+      collector->has_prev_oru = true;
+    }
+  }
+
+  /* Collect E2 KPM metrics if enabled */
+  if (collector->config.enable_e2_metrics) {
+    AuroraE2RawMetrics current_e2;
+    memset(&current_e2, 0, sizeof(current_e2));
+
+    if (aurora_e2_collect_raw("gnb_du_0", AURORA_NODE_DU, &current_e2) == 0) {
+      const AuroraE2RawMetrics *prev_ptr = collector->has_prev_e2 ?
+                                           &collector->prev_e2 : NULL;
+      aurora_e2_write_metrics(collector->shm_handle, "gnb_du_0",
+                              AURORA_NODE_DU, &current_e2, prev_ptr);
+      memcpy(&collector->prev_e2, &current_e2, sizeof(AuroraE2RawMetrics));
+      collector->has_prev_e2 = true;
+    }
+  }
+
   return 0;
 }

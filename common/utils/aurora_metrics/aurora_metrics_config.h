@@ -44,6 +44,8 @@ typedef struct {
   bool enable_node_metrics;               /**< Enable E2/O-RU node metrics */
   bool enable_worker_metrics;             /**< Enable worker process monitoring */
   bool enable_statistical_metrics;        /**< Enable derived statistics */
+  bool enable_oru_metrics;                /**< Enable O-RU radio metrics collection */
+  bool enable_e2_metrics;                 /**< Enable E2 KPM metrics collection */
 } AuroraCollectorConfig;
 
 /**

@@ -25,7 +25,7 @@ The Aurora Metrics Service is a high-performance metric collection and monitorin
    - Background thread for periodic metric collection
    - Statistical analysis functions (mean, variance, std dev, skewness, kurtosis, IQR)
    - Configurable collection intervals
-   - Extensible collection framework
+   - Integrated O-RU, E2 KPM, and worker metric collection
 
 3. **Worker Metrics** (`aurora_worker_metrics.c/h`)
    - **eBPF-style direct syscalls** for fast metric collection
@@ -37,13 +37,31 @@ The Aurora Metrics Service is a high-performance metric collection and monitorin
    - **Raw metric collection** with delta computation in collector
    - **Nanosecond-precision timestamps** using `clock_gettime(CLOCK_MONOTONIC, ...)`
 
-4. **Configuration** (`aurora_metrics_config.c/h`)
+4. **O-RU Metrics** (`aurora_oru_metrics.c/h`)
+   - Radio metrics from O-RU devices (actual radios, USRP, or simulated)
+   - SINR (average/min/max), RSRP, PUSCH SNR, CSI
+   - PRB utilization (DL/UL percentage)
+   - DL/UL throughput (bytes per interval, delta)
+   - HARQ/CRC error rates (DL HARQ loss rate, UL CRC loss rate)
+   - Active UE count
+   - Simulated mode for testing; live mode maps to NR_mac_stats_t
+
+5. **E2 KPM Metrics** (`aurora_e2_metrics.c/h`)
+   - 3GPP TS 28.522 compliant KPM measurements exposed via E2 interface
+   - DRB.PdcpSduVolumeDL/UL (Megabits, delta)
+   - DRB.RlcSduDelayDl (microseconds, gauge)
+   - DRB.UEThpDl/Ul (kbps, gauge)
+   - RRU.PrbTotDl/Ul (percent, gauge)
+   - Simulated mode for testing; live mode maps to PDCP/RLC/MAC stats
+
+6. **Configuration** (`aurora_metrics_config.c/h`)
    - Centralized configuration management
    - Default values and validation
    - Runtime configuration support
    - **Default 100ms collection interval** for high-frequency monitoring
+   - Per-source enable/disable (worker, O-RU, E2 metrics)
 
-5. **CSV Reader** (`aurora_metrics_csv_reader.c`)
+7. **CSV Reader** (`aurora_metrics_csv_reader.c`)
    - Standalone program for exporting metrics to CSV
    - Designed for sidecar containers
    - Exports node and worker metrics to separate CSV files
@@ -74,6 +92,42 @@ struct AuroraMetricsShmHeader {
 - **Traffic Metrics**: Backhaul TX/RX sizes and means
 - **Radio Metrics**: SINR (average/min/max), CSI
 - **Loss Metrics**: DL HARQ loss rate, UL CRC loss rate
+
+#### O-RU Radio Metrics (via `aurora_oru_metrics`)
+
+Collected from O-RU devices (actual radios like USRP, or simulated):
+
+| Metric ID | Name | Type | Unit | Description |
+|-----------|------|------|------|-------------|
+| `AURORA_METRIC_SINR_AVERAGE` | SINR Average | Gauge | dB×10 | Average SINR across UEs |
+| `AURORA_METRIC_SINR_MIN` | SINR Min | Gauge | dB×10 | Minimum SINR |
+| `AURORA_METRIC_SINR_MAX` | SINR Max | Gauge | dB×10 | Maximum SINR |
+| `AURORA_METRIC_CSI_AVERAGE` | CSI Average | Gauge | - | Channel State Information |
+| `AURORA_METRIC_RSRP_AVERAGE` | RSRP Average | Gauge | dBm | Reference Signal Received Power |
+| `AURORA_METRIC_PUSCH_SNR` | PUSCH SNR | Gauge | dB×10 | PUSCH Signal-to-Noise Ratio |
+| `AURORA_METRIC_PRB_UTIL_DL` | PRB Util DL | Gauge | % | DL PRB utilization |
+| `AURORA_METRIC_PRB_UTIL_UL` | PRB Util UL | Gauge | % | UL PRB utilization |
+| `AURORA_METRIC_NUM_ACTIVE_UES` | Active UEs | Gauge | count | Number of active UEs |
+| `AURORA_METRIC_DL_TOTAL_BYTES_DELTA` | DL Bytes | Delta | bytes | DL bytes this interval |
+| `AURORA_METRIC_UL_TOTAL_BYTES_DELTA` | UL Bytes | Delta | bytes | UL bytes this interval |
+| `AURORA_METRIC_DL_ERRORS_DELTA` | DL Errors | Delta | count | DL HARQ errors this interval |
+| `AURORA_METRIC_UL_ERRORS_DELTA` | UL Errors | Delta | count | UL CRC errors this interval |
+| `AURORA_METRIC_DL_HARQ_LOSS_RATE` | DL HARQ Loss | Delta | ratio | HARQ error rate (0.0-1.0) |
+| `AURORA_METRIC_UL_CRC_LOSS_RATE` | UL CRC Loss | Delta | ratio | CRC error rate (0.0-1.0) |
+
+#### E2 KPM Metrics (via `aurora_e2_metrics`, 3GPP TS 28.522)
+
+Metrics exposed through the E2 interface following standard KPM measurement names:
+
+| Metric ID | KPM Name | Type | Unit | Description |
+|-----------|----------|------|------|-------------|
+| `AURORA_METRIC_DRB_PDCP_SDU_VOL_DL` | DRB.PdcpSduVolumeDL | Delta | Mb | PDCP SDU volume downlink |
+| `AURORA_METRIC_DRB_PDCP_SDU_VOL_UL` | DRB.PdcpSduVolumeUL | Delta | Mb | PDCP SDU volume uplink |
+| `AURORA_METRIC_DRB_RLC_SDU_DELAY_DL` | DRB.RlcSduDelayDl | Gauge | μs | RLC buffer sojourn time |
+| `AURORA_METRIC_DRB_UE_THP_DL` | DRB.UEThpDl | Gauge | kbps | UE throughput downlink |
+| `AURORA_METRIC_DRB_UE_THP_UL` | DRB.UEThpUl | Gauge | kbps | UE throughput uplink |
+| `AURORA_METRIC_RRU_PRB_TOT_DL` | RRU.PrbTotDl | Gauge | % | DL PRB allocation |
+| `AURORA_METRIC_RRU_PRB_TOT_UL` | RRU.PrbTotUl | Gauge | % | UL PRB allocation |
 
 #### Worker Metrics (DELTA metrics)
 
