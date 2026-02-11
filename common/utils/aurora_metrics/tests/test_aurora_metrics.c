@@ -573,7 +573,7 @@ void test_collector_with_oru_e2(void)
   printf("  Collector started\n");
 
   /* Let it collect for a bit to get multiple deltas */
-  usleep(350000);  /* 350ms - about 3 collections at 100ms */
+  usleep(config.collection_interval_ms * 3 * 1000 + 50000);
 
   /* Stop collector */
   ret = aurora_collector_stop(&collector);

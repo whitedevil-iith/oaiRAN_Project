@@ -115,8 +115,11 @@ int aurora_oru_collect_raw(const char *node_name, AuroraOruRawMetrics *raw)
   raw->prb_util_ul = sim_variation(35.0, 20.0);
   if (raw->prb_util_ul < 0.0) raw->prb_util_ul = 0.0;
   if (raw->prb_util_ul > 100.0) raw->prb_util_ul = 100.0;
-  raw->num_active_ues = (uint32_t)(sim_variation(4.0, 6.0));
-  if (raw->num_active_ues > 100) raw->num_active_ues = 0; /* handle underflow */
+  raw->num_active_ues = 0;
+  double ue_count = sim_variation(4.0, 6.0);
+  if (ue_count >= 1.0 && ue_count <= 100.0) {
+    raw->num_active_ues = (uint32_t)ue_count;
+  }
 
   /* Monotonic counter metrics: accumulate over time */
   s_dl_bytes_total += sim_variation(125000.0, 50000.0); /* ~1 Mbps */
