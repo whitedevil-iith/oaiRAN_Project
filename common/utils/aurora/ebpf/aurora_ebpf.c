@@ -53,15 +53,9 @@ int aurora_ebpf_init(const aurora_worker_config_t *cfg)
   memcpy(&stored_cfg, cfg, sizeof(stored_cfg));
   initialized = true;
 
-  fprintf(stderr, "aurora ebpf: stub initialized with %d workers\n",
-          cfg->num_workers);
-  for (int i = 0; i < cfg->num_workers; i++) {
-    fprintf(stderr, "  worker[%d]: %s\n", i, cfg->worker_names[i]);
-  }
-  fprintf(stderr, "aurora ebpf: hooks would attach to:\n");
-  for (int h = 0; h < AURORA_EBPF_HOOK_COUNT; h++) {
-    fprintf(stderr, "  - %s\n", aurora_ebpf_hook_str((aurora_ebpf_hook_t)h));
-  }
+  /* Stub mode: real eBPF programs are not loaded.
+   * In production, libbpf would attach to the hooks listed in
+   * aurora_ebpf_hook_t and filter by worker comm name. */
 
   return 0;
 }

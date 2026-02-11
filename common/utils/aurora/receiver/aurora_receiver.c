@@ -138,7 +138,7 @@ void aurora_window_compute_stats(const aurora_sliding_window_t *w,
     memcpy(sorted, w->values, n * sizeof(double));
   } else {
     /* full window: oldest is at head, wrap around */
-    int tail = n - w->head;
+    int tail = AURORA_WINDOW_SIZE - w->head;
     memcpy(sorted, &w->values[w->head], tail * sizeof(double));
     memcpy(&sorted[tail], w->values, w->head * sizeof(double));
   }
@@ -232,12 +232,15 @@ void aurora_receiver_process(aurora_receiver_t *rx,
                                 rx->snapshot.traffic[i].name,
                                 &results[total]);
 
-    /* Compute loss ratio from packet/byte counters if available */
-    if (rx->snapshot.traffic[i].packet_count > 0) {
-      results[total].loss_ratio =
-          1.0 - ((double)rx->snapshot.traffic[i].byte_count /
-                 ((double)rx->snapshot.traffic[i].packet_count *
-                  (double)rx->snapshot.traffic[i].last_packet_size));
+    /* Approximate loss ratio: valid for fixed-size packet streams.
+     * For variable-size packets the producer should export a
+     * dedicated expected_bytes counter for accurate computation. */
+    if (rx->snapshot.traffic[i].packet_count > 0 &&
+        rx->snapshot.traffic[i].last_packet_size > 0) {
+      double expected = (double)rx->snapshot.traffic[i].packet_count *
+                        (double)rx->snapshot.traffic[i].last_packet_size;
+      results[total].loss_ratio = 1.0 -
+          ((double)rx->snapshot.traffic[i].byte_count / expected);
       if (results[total].loss_ratio < 0.0)
         results[total].loss_ratio = 0.0;
     }

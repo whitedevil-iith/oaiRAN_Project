@@ -25,7 +25,9 @@ producer:
       cpu: "4"
       memory: "4Gi"
   securityContext:
-    privileged: true
+    # Privileged mode is disabled; only the specific capabilities
+    # required for eBPF monitoring are granted below.
+    privileged: false
     capabilities:
       add:
         - SYS_ADMIN

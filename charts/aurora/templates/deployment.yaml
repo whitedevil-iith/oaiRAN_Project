@@ -20,6 +20,9 @@ spec:
         component: {{ .Values.node.type | lower }}
         aurora: enabled
     spec:
+      # shareProcessNamespace is required so the Aurora receiver sidecar
+      # can observe producer process state for eBPF-based worker monitoring
+      # and stale-producer detection.
       shareProcessNamespace: true
       containers:
         # ── Container 1: RAN Node + Aurora Producer ──────────────
